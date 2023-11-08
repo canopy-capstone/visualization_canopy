@@ -7,6 +7,7 @@ import vtkFullScreenRenderWindow from '@kitware/vtk.js/Rendering/Misc/FullScreen
 import vtkActor           from '@kitware/vtk.js/Rendering/Core/Actor';
 import vtkMapper          from '@kitware/vtk.js/Rendering/Core/Mapper';
 import vtkOBJReader from "@kitware/vtk.js/IO/Misc/OBJReader";
+import vtkSTLReader from "@kitware/vtk.js/IO/Geometry/STLReader";
 
 function App() {
   const vtkContainerRef = useRef(null);
@@ -19,8 +20,8 @@ function App() {
           rootContainer: vtkContainerRef.current,
         });
 
-        const reader = vtkOBJReader.newInstance();
-        await reader.setUrl('./suzanne.obj'); // Replace with the path to your STL file
+        const reader = vtkSTLReader.newInstance();
+        await reader.setUrl('./simple-calibration-part-v1.STL'); // Replace with the path to your STL file
 
         try {
           const mapper = vtkMapper.newInstance();

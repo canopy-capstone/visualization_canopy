@@ -33,7 +33,7 @@ function App() {
         });
 
         const reader = vtkSTLReader.newInstance();
-        await reader.setUrl('./CuttingBoardStand.STL'); // Replace with the path to your STL file
+        await reader.setUrl('./simple-calibration-part-v1.STL'); // Replace with the path to your STL file
 
         try {
           const mapper = vtkMapper.newInstance();
@@ -42,13 +42,27 @@ function App() {
           const actor = vtkActor.newInstance();
           actor.setMapper(mapper);
 
-          const colors = new Uint8Array(reader.getOutputData().getNumberOfCells() * 3);
+          const colors = new Uint8Array(reader.getOutputData().getNumberOfCells() * 3); // 3 bytes per cell for RGB
+          // const copiedColors = new Uint8Array(colors.length);
+
+          // Assign colors to specific triangles
+          let init_red = 50.0;
+          let init_green = 255.0;
+          let init_blue = 50.0;
+          const step_size = 410.0 / (colors.length / 3);
 
           for (let i = 0; i < colors.length; i += 3) {
-            // Example: Color every other triangle red (255, 0, 0)
-            colors[i] = 0;   // Red
-            colors[i + 1] = 0; // Green
-            colors[i + 2] = 255; // Blue
+            // Example: Color the first triangle red (1.0, 0.0, 0.0)
+
+            if ((init_red + step_size) >= 255) {
+              init_red = 255;
+              init_green -= step_size;
+            }else{
+              init_red += step_size
+            }
+            colors[i] = init_red;   // Red
+            colors[i + 1] = init_green; // Green
+            colors[i + 2] = init_blue; // Blue
           }
 
           const colorDataArray = vtkDataArray.newInstance({

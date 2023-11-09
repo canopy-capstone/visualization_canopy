@@ -8,6 +8,18 @@ import vtkActor           from '@kitware/vtk.js/Rendering/Core/Actor';
 import vtkMapper          from '@kitware/vtk.js/Rendering/Core/Mapper';
 import vtkOBJReader from "@kitware/vtk.js/IO/Misc/OBJReader";
 import vtkSTLReader from "@kitware/vtk.js/IO/Geometry/STLReader";
+import vtkColorTransferFunction from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction';
+import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
+
+function readThicknessValuesFromFile(url) {
+  return fetch(url)
+    .then(response => response.text())
+    .then(data => data.trim().split('\n').map(Number))
+    .catch(error => {
+      console.error('Error reading the file:', error);
+      return [];
+    });
+}
 
 function App() {
   const vtkContainerRef = useRef(null);
@@ -21,7 +33,7 @@ function App() {
         });
 
         const reader = vtkSTLReader.newInstance();
-        await reader.setUrl('./simple-calibration-part-v1.STL'); // Replace with the path to your STL file
+        await reader.setUrl('./CuttingBoardStand.STL'); // Replace with the path to your STL file
 
         try {
           const mapper = vtkMapper.newInstance();
@@ -29,6 +41,23 @@ function App() {
 
           const actor = vtkActor.newInstance();
           actor.setMapper(mapper);
+
+          const colors = new Uint8Array(reader.getOutputData().getNumberOfCells() * 3);
+
+          for (let i = 0; i < colors.length; i += 3) {
+            // Example: Color every other triangle red (255, 0, 0)
+            colors[i] = 0;   // Red
+            colors[i + 1] = 0; // Green
+            colors[i + 2] = 255; // Blue
+          }
+
+          const colorDataArray = vtkDataArray.newInstance({
+            name: 'Colors',
+            values: colors,
+            numberOfComponents: 3, // RGB
+          });
+
+          reader.getOutputData().getCellData().setScalars(colorDataArray);
 
           const renderer = fullScreenRenderer.getRenderer();
           renderer.addActor(actor);
@@ -38,7 +67,11 @@ function App() {
           console.error('Error loading STL:', error);
         }
       };
-
+      const fileUrl = './thickness.txt';
+      readThicknessValuesFromFile(fileUrl)
+        .then(thicknessValues => {
+          console.log(thicknessValues);
+        });
       loadSTL();
     }, []);
 

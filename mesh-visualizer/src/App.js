@@ -6,11 +6,12 @@ import vtkFullScreenRenderWindow from '@kitware/vtk.js/Rendering/Misc/FullScreen
 
 import vtkActor           from '@kitware/vtk.js/Rendering/Core/Actor';
 import vtkMapper          from '@kitware/vtk.js/Rendering/Core/Mapper';
-import vtkOBJReader from "@kitware/vtk.js/IO/Misc/OBJReader";
+// import vtkOBJReader from "@kitware/vtk.js/IO/Misc/OBJReader";
 import vtkSTLReader from "@kitware/vtk.js/IO/Geometry/STLReader";
-import vtkColorTransferFunction from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction';
+// import vtkColorTransferFunction from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 
+// Function to load the thickness text file
 function readThicknessValuesFromFile(url) {
   return fetch(url)
     .then(response => response.text())
@@ -21,10 +22,35 @@ function readThicknessValuesFromFile(url) {
     });
 }
 
+// MapValue maps a value from one function to another
+// const mapValue = (value, fromMin, fromMax, toMin, toMax) => {
+//   return (value - fromMin) * (toMax - toMin) / (fromMax - fromMin) + toMin;
+// };
+
+// This function will load the coloring for the triangles based on their thickness
+function load_gradient(thickness, min, max) {
+  
+  // Convert the array to a Set to get unique values and then assign that as the size of the colors
+  // const uniqueValuesSet = new Set(thickness);
+  // const numberOfUniqueValues = uniqueValuesSet.size;
+  const color_arr = new Uint8Array(thickness.length * 3);
+
+  let normalizedVal, curr_thickness;
+  for (let i = 0; i < color_arr.length; i += 3) {
+    curr_thickness = thickness[i / 3];
+    normalizedVal = (curr_thickness - min) / (max - min);
+
+    color_arr[i] = Math.round(255 * (normalizedVal));
+    color_arr[i+1] = 0;
+    color_arr[i+2] = Math.round(255 * (1 - normalizedVal));
+  }
+
+  return color_arr;
+}
+  
+
 function App() {
   const vtkContainerRef = useRef(null);
-  // const [coneResolution, setConeResolution] = useState(10);
-  // const [representation, setRepresentation] = useState(2);
 
     useEffect(() => {
       const loadSTL = async () => {
@@ -42,28 +68,16 @@ function App() {
           const actor = vtkActor.newInstance();
           actor.setMapper(mapper);
 
-          const colors = new Uint8Array(reader.getOutputData().getNumberOfCells() * 3); // 3 bytes per cell for RGB
-          // const copiedColors = new Uint8Array(colors.length);
+          // let colors = new Uint8Array(reader.getOutputData().getNumberOfCells() * 3); // 3 bytes per cell for RGB
+          // const thicknessValues = await readThicknessValuesFromFile('./thickness.txt');
+          // colors = load_gradient(thicknessValues, colors);
 
-          // Assign colors to specific triangles
-          let init_red = 50.0;
-          let init_green = 255.0;
-          let init_blue = 50.0;
-          const step_size = 410.0 / (colors.length / 3);
+          const thicknessValues = await readThicknessValuesFromFile('./thickness.txt');
+          const minThickness = Math.min(...thicknessValues);
+          const maxThickness = Math.max(...thicknessValues);
 
-          for (let i = 0; i < colors.length; i += 3) {
-            // Example: Color the first triangle red (1.0, 0.0, 0.0)
-
-            if ((init_red + step_size) >= 255) {
-              init_red = 255;
-              init_green -= step_size;
-            }else{
-              init_red += step_size
-            }
-            colors[i] = init_red;   // Red
-            colors[i + 1] = init_green; // Green
-            colors[i + 2] = init_blue; // Blue
-          }
+          // Create color array based on thickness values
+          const colors = load_gradient(thicknessValues, minThickness, maxThickness);
 
           const colorDataArray = vtkDataArray.newInstance({
             name: 'Colors',
@@ -81,11 +95,7 @@ function App() {
           console.error('Error loading STL:', error);
         }
       };
-      const fileUrl = './thickness.txt';
-      readThicknessValuesFromFile(fileUrl)
-        .then(thicknessValues => {
-          console.log(thicknessValues);
-        });
+      
       loadSTL();
     }, []);
 

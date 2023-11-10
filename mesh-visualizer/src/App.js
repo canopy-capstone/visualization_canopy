@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
 import '@kitware/vtk.js/Rendering/Profiles/Geometry';
 
@@ -23,115 +23,127 @@ function readThicknessValuesFromFile(url) {
 }
 
 // This function will load the coloring for the triangles based on their thickness
-function load_gradient(thickness, min, max) {
-  
-  const color_arr = new Uint8Array(thickness.length * 3);
+function load_gradient(thickness, min, max, transparency) {
+  const color_arr = new Uint8Array(thickness.length * 4);
   let normalizedVal, curr_thickness;
 
   // Iterate through every value in the thickness file and assign a color corresponding to it
-  for (let i = 0; i < color_arr.length; i += 3) {
-    curr_thickness = thickness[i / 3];
+  for (let i = 0; i < color_arr.length; i += 4) {
+    curr_thickness = thickness[i / 4];
 
     // Apply logarithmic transformation
     curr_thickness = Math.log(curr_thickness + 1);  // Adding 1 to avoid log(0)
     normalizedVal = (curr_thickness - Math.log(min + 1)) / (Math.log(max + 1) - Math.log(min + 1));
 
+    // if (transparency > normalizedVal) {
+    //   // Set the alpha to adjust transparency
+    //   color_arr[i + 3] = 255;
+    // } else {
+    //   // Set the alpha to 0 for triangles with low thickness when transparency is low
+    //   color_arr[i + 3] = 0;
+    // }
+
+    // color_arr[i + 3] = transparency < normalizedVal ? 0 : 255;
+
     color_arr[i] = Math.round(255 * (normalizedVal));
     color_arr[i+1] = 0;
     color_arr[i+2] = Math.round(255 * (1 - normalizedVal));
+    color_arr[i + 3] = normalizedVal <= transparency ? 255 : 0;
   }
 
   return color_arr;
 }
-  
 
+let minThickness, maxThickness;
 function App() {
   const vtkContainerRef = useRef(null);
+  const [transparency, setTransparency] = useState(0.5); // Initial transparency value
+  const fullScreenRendererRef = useRef(null); // Ref to store the vtkFullScreenRenderWindow instance
 
-    useEffect(() => {
-      const loadSTL = async () => {
-        const fullScreenRenderer = vtkFullScreenRenderWindow.newInstance({
-          rootContainer: vtkContainerRef.current,
+  useEffect(() => {
+
+    const loadSTL = async () => {
+      const reader = vtkSTLReader.newInstance();
+      await reader.setUrl('./simple-calibration-part-v1.STL');
+
+      try {
+        if (!fullScreenRendererRef.current) {
+          // Create vtkFullScreenRenderWindow only once
+          fullScreenRendererRef.current = vtkFullScreenRenderWindow.newInstance({
+            rootContainer: vtkContainerRef.current,
+          });
+        }
+
+        const renderer = fullScreenRendererRef.current.getRenderer();
+
+        // Remove existing actors from the renderer
+        renderer.getActors().forEach((actor) => renderer.removeActor(actor));
+
+        const mapper = vtkMapper.newInstance();
+        mapper.setInputData(reader.getOutputData());
+
+        const actor = vtkActor.newInstance();
+        actor.setMapper(mapper);
+
+        const thicknessValues = await readThicknessValuesFromFile('./thickness.txt');
+        minThickness = Math.min(...thicknessValues);
+        maxThickness = Math.max(...thicknessValues);
+
+        // Create color array based on thickness values and transparency
+        const colors = load_gradient(thicknessValues, minThickness, maxThickness, transparency);
+
+        const colorDataArray = vtkDataArray.newInstance({
+          name: 'Colors',
+          values: colors,
+          numberOfComponents: 4, // RGB + alpha
         });
 
-        const reader = vtkSTLReader.newInstance();
-        await reader.setUrl('./simple-calibration-part-v1.STL'); // Replace with the path to your STL file
+        reader.getOutputData().getCellData().setScalars(colorDataArray);
 
-        try {
-          const mapper = vtkMapper.newInstance();
-          mapper.setInputData(reader.getOutputData());
+        // Add the new actor to the renderer
+        renderer.addActor(actor);
+        renderer.resetCamera();
+        fullScreenRendererRef.current.getRenderWindow().render();
+      } catch (error) {
+        console.error('Error loading STL:', error);
+      }
+    };
 
-          const actor = vtkActor.newInstance();
-          actor.setMapper(mapper);
-
-          const thicknessValues = await readThicknessValuesFromFile('./thickness.txt');
-          const minThickness = Math.min(...thicknessValues);
-          const maxThickness = Math.max(...thicknessValues);
-
-          // Create color array based on thickness values
-          const colors = load_gradient(thicknessValues, minThickness, maxThickness);
-
-          const colorDataArray = vtkDataArray.newInstance({
-            name: 'Colors',
-            values: colors,
-            numberOfComponents: 3, // RGB
-          });
-
-          reader.getOutputData().getCellData().setScalars(colorDataArray);
-
-          const renderer = fullScreenRenderer.getRenderer();
-          renderer.addActor(actor);
-          renderer.resetCamera();
-          fullScreenRenderer.getRenderWindow().render();
-        } catch (error) {
-          console.error('Error loading STL:', error);
-        }
-      };
-      
-      loadSTL();
-    }, []);
-
+    loadSTL();
+  }, [transparency]);
 
   return (
-      <div>
-        <div ref={vtkContainerRef} />
-        {/*<table*/}
-        {/*    style={{*/}
-        {/*      position: 'absolute',*/}
-        {/*      top: '25px',*/}
-        {/*      left: '25px',*/}
-        {/*      background: 'white',*/}
-        {/*      padding: '12px',*/}
-        {/*    }}*/}
-        {/*>*/}
-        {/*  <tbody>*/}
-        {/*  <tr>*/}
-        {/*    <td>*/}
-        {/*      <select*/}
-        {/*          value={representation}*/}
-        {/*          style={{ width: '100%' }}*/}
-        {/*          onInput={(ev) => setRepresentation(Number(ev.target.value))}*/}
-        {/*      >*/}
-        {/*        <option value="0">Points</option>*/}
-        {/*        <option value="1">Wireframe</option>*/}
-        {/*        <option value="2">Surface</option>*/}
-        {/*      </select>*/}
-        {/*    </td>*/}
-        {/*  </tr>*/}
-        {/*  <tr>*/}
-        {/*    <td>*/}
-        {/*      <input*/}
-        {/*          type="range"*/}
-        {/*          min="4"*/}
-        {/*          max="80"*/}
-        {/*          value={coneResolution}*/}
-        {/*          onChange={(ev) => setConeResolution(Number(ev.target.value))}*/}
-        {/*      />*/}
-        {/*    </td>*/}
-        {/*  </tr>*/}
-        {/*  </tbody>*/}
-        {/*</table>*/}
+    <div style={{ display: 'flex', flexDirection: 'row' }}>
+      <div ref={vtkContainerRef} style={{ flex: 1 }}>
+        {/* Adjust the flex property based on your layout */}
       </div>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100vh', // Make the container full height
+        }}
+      >
+        <input
+          style={{
+            width: '400px',
+            height: '200px',
+            transform: 'rotate(-90deg)',
+            backgroundColor: '#3498db',
+            marginBottom: '20px',
+          }}
+          type="range"
+          min='0'
+          max='1'
+          step="0.01"
+          value={transparency}
+          onChange={(e) => setTransparency(parseFloat(e.target.value))}
+        />
+        {transparency}
+      </div>
+    </div>
   );
 }
 

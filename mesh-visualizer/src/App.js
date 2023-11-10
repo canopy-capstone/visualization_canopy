@@ -22,22 +22,16 @@ function readThicknessValuesFromFile(url) {
     });
 }
 
-// MapValue maps a value from one function to another
-// const mapValue = (value, fromMin, fromMax, toMin, toMax) => {
-//   return (value - fromMin) * (toMax - toMin) / (fromMax - fromMin) + toMin;
-// };
-
 // This function will load the coloring for the triangles based on their thickness
 function load_gradient(thickness, min, max) {
   
-  // Convert the array to a Set to get unique values and then assign that as the size of the colors
-  // const uniqueValuesSet = new Set(thickness);
-  // const numberOfUniqueValues = uniqueValuesSet.size;
   const color_arr = new Uint8Array(thickness.length * 3);
-
+  
   let normalizedVal, curr_thickness;
+  // Iterate through every value in the thickness file and assign a color corresponding to it
   for (let i = 0; i < color_arr.length; i += 3) {
     curr_thickness = thickness[i / 3];
+    // Calculate the normalizing value so that the scale is from the min to max thickness in the file.
     normalizedVal = (curr_thickness - min) / (max - min);
 
     color_arr[i] = Math.round(255 * (normalizedVal));
@@ -68,10 +62,6 @@ function App() {
           const actor = vtkActor.newInstance();
           actor.setMapper(mapper);
 
-          // let colors = new Uint8Array(reader.getOutputData().getNumberOfCells() * 3); // 3 bytes per cell for RGB
-          // const thicknessValues = await readThicknessValuesFromFile('./thickness.txt');
-          // colors = load_gradient(thicknessValues, colors);
-
           const thicknessValues = await readThicknessValuesFromFile('./thickness.txt');
           const minThickness = Math.min(...thicknessValues);
           const maxThickness = Math.max(...thicknessValues);
@@ -98,41 +88,6 @@ function App() {
       
       loadSTL();
     }, []);
-
-//   const colors = new Uint8Array(model.getNumberOfCells() * 3); // 3 bytes per cell for RGB
-//
-// // Assign colors to specific triangles
-//   for (let i = 0; i < colors.length; i += 3) {
-//     // Example: Color the first triangle red (255, 0, 0)
-//     colors[i] = 255;   // Red
-//     colors[i + 1] = 0; // Green
-//     colors[i + 2] = 0; // Blue
-//   }
-//
-// // Create a cell data array and attach it to the model
-//   const colorDataArray = vtk.Common.Core.vtkDataArray.newInstance({
-//     name: 'Colors',
-//     values: colors,
-//     numberOfComponents: 3, // RGB
-//   });
-//
-//   model.getCellData().setScalars(colorDataArray);
-
-  // Assuming you have the `actor` and `mapper` from the STL model
-//   const renderer = fullScreenRenderer.getRenderer();
-//
-// // Set up the cell data mapping
-//   actor.getProperty().setInterpolationToFlat(); // For flat shading
-//   actor.getProperty().setEdgeVisibility(true); // Show edges
-//
-// // Set color mapping based on cell data
-//   const lut = vtk.Rendering.Core.vtkColorTransferFunction.newInstance();
-//   lut.setMappingRange(0, model.getNumberOfCells() - 1);
-//   lut.addRGBPoint(0, 1, 0, 0); // Example: Map the first cell to red
-//
-//   mapper.setInputData(model);
-//   mapper.setLookupTable(lut);
-
 
 
   return (

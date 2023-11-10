@@ -31,11 +31,15 @@ function load_gradient(thickness, min, max) {
   // Iterate through every value in the thickness file and assign a color corresponding to it
   for (let i = 0; i < color_arr.length; i += 3) {
     curr_thickness = thickness[i / 3];
-    // Calculate the normalizing value so that the scale is from the min to max thickness in the file.
-    normalizedVal = (curr_thickness - min) / (max - min);
+    // Apply logarithmic transformation
+    curr_thickness = Math.log(curr_thickness + 1);  // Adding 1 to avoid log(0)
+    normalizedVal = (curr_thickness - Math.log(min + 1)) / (Math.log(max + 1) - Math.log(min + 1));
 
-    color_arr[i] = Math.round(255 * (normalizedVal));
-    color_arr[i+1] = 0;
+    // Calculate the normalizing value so that the scale is from the min to max thickness in the file.
+    // normalizedVal = (curr_thickness - min) / (max - min);
+
+    color_arr[i] = 50;
+    color_arr[i+1] = Math.round(255 * (normalizedVal));
     color_arr[i+2] = Math.round(255 * (1 - normalizedVal));
   }
 

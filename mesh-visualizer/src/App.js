@@ -35,16 +35,6 @@ function load_gradient(thickness, min, max, transparency) {
     curr_thickness = Math.log(curr_thickness + 1);  // Adding 1 to avoid log(0)
     normalizedVal = (curr_thickness - Math.log(min + 1)) / (Math.log(max + 1) - Math.log(min + 1));
 
-    // if (transparency > normalizedVal) {
-    //   // Set the alpha to adjust transparency
-    //   color_arr[i + 3] = 255;
-    // } else {
-    //   // Set the alpha to 0 for triangles with low thickness when transparency is low
-    //   color_arr[i + 3] = 0;
-    // }
-
-    // color_arr[i + 3] = transparency < normalizedVal ? 0 : 255;
-
     color_arr[i] = Math.round(255 * (normalizedVal));
     color_arr[i+1] = 0;
     color_arr[i+2] = Math.round(255 * (1 - normalizedVal));
@@ -54,29 +44,27 @@ function load_gradient(thickness, min, max, transparency) {
   return color_arr;
 }
 
-let minThickness, maxThickness;
+let minThickness, maxThickness, thicknessValues;
 function App() {
   const vtkContainerRef = useRef(null);
-  const [transparency, setTransparency] = useState(0.5); // Initial transparency value
-  const fullScreenRendererRef = useRef(null); // Ref to store the vtkFullScreenRenderWindow instance
+  const [transparency, setTransparency] = useState(1.0);
+  const [initialized, setInitialized] = useState(false);
+  const fullScreenRendererRef = useRef(null);
 
+  // Load STL and initialize thickness values on component mount
   useEffect(() => {
-
     const loadSTL = async () => {
       const reader = vtkSTLReader.newInstance();
-      await reader.setUrl('./simple-calibration-part-v1.STL');
+      await reader.setUrl('./test_items/bunny/thickness_model.stl');
 
       try {
         if (!fullScreenRendererRef.current) {
-          // Create vtkFullScreenRenderWindow only once
           fullScreenRendererRef.current = vtkFullScreenRenderWindow.newInstance({
             rootContainer: vtkContainerRef.current,
           });
         }
 
         const renderer = fullScreenRendererRef.current.getRenderer();
-
-        // Remove existing actors from the renderer
         renderer.getActors().forEach((actor) => renderer.removeActor(actor));
 
         const mapper = vtkMapper.newInstance();
@@ -85,32 +73,51 @@ function App() {
         const actor = vtkActor.newInstance();
         actor.setMapper(mapper);
 
-        const thicknessValues = await readThicknessValuesFromFile('./thickness.txt');
+        thicknessValues = await readThicknessValuesFromFile('./test_items/bunny/thickness.txt');
         minThickness = Math.min(...thicknessValues);
         maxThickness = Math.max(...thicknessValues);
 
-        // Create color array based on thickness values and transparency
+        // Initial color array
         const colors = load_gradient(thicknessValues, minThickness, maxThickness, transparency);
-
         const colorDataArray = vtkDataArray.newInstance({
           name: 'Colors',
           values: colors,
-          numberOfComponents: 4, // RGB + alpha
+          numberOfComponents: 4,
         });
 
         reader.getOutputData().getCellData().setScalars(colorDataArray);
 
-        // Add the new actor to the renderer
         renderer.addActor(actor);
         renderer.resetCamera();
         fullScreenRendererRef.current.getRenderWindow().render();
+        setInitialized(true)
       } catch (error) {
         console.error('Error loading STL:', error);
       }
     };
 
     loadSTL();
-  }, [transparency]);
+  },);
+
+  // Update color array when transparency changes
+  useEffect(() => {
+    if (initialized && fullScreenRendererRef.current) {
+      const renderer = fullScreenRendererRef.current.getRenderer();
+      const actor = renderer.getActors()[0]; // Assuming there is only one actor
+
+      if (actor) {
+        const colors = load_gradient(thicknessValues, minThickness, maxThickness, transparency);
+        const colorDataArray = vtkDataArray.newInstance({
+          name: 'Colors',
+          values: colors,
+          numberOfComponents: 4,
+        });
+
+        actor.getMapper().getInputData().getCellData().setScalars(colorDataArray);
+        fullScreenRendererRef.current.getRenderWindow().render();
+      }
+    }
+  }, [transparency, initialized]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'row' }}>
@@ -126,6 +133,7 @@ function App() {
           height: '100vh', // Make the container full height
         }}
       >
+        <label htmlFor="transparencySlider" style={{ zIndex: 2, marginBottom: '100px' }}>Min: {minThickness}</label>
         <input
           style={{
             width: '400px',
@@ -142,6 +150,7 @@ function App() {
           onChange={(e) => setTransparency(parseFloat(e.target.value))}
         />
         {transparency}
+        <label htmlFor="transparencySlider" style={{ zIndex: 2, marginTop: '60px' }}>Max: {maxThickness}</label>
       </div>
     </div>
   );

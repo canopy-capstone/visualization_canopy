@@ -84,7 +84,6 @@ function App() {
           values: colors,
           numberOfComponents: 4,
         });
-        console.log(transparency);
 
         reader.getOutputData().getCellData().setScalars(colorDataArray);
 
@@ -116,7 +115,6 @@ function App() {
           numberOfComponents: 4,
         });
 
-        console.log("hi");
 
         actor.getMapper().getInputData().getCellData().setScalars(colorDataArray);
         fullScreenRendererRef.current.getRenderWindow().render();

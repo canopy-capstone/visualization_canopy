@@ -84,6 +84,7 @@ function App() {
           values: colors,
           numberOfComponents: 4,
         });
+        console.log(transparency);
 
         reader.getOutputData().getCellData().setScalars(colorDataArray);
 
@@ -95,8 +96,10 @@ function App() {
         console.error('Error loading STL:', error);
       }
     };
-
-    loadSTL();
+    if(!initialized)
+    {
+      loadSTL();
+    }
   },);
 
   // Update color array when transparency changes
@@ -112,6 +115,8 @@ function App() {
           values: colors,
           numberOfComponents: 4,
         });
+
+        console.log("hi");
 
         actor.getMapper().getInputData().getCellData().setScalars(colorDataArray);
         fullScreenRendererRef.current.getRenderWindow().render();

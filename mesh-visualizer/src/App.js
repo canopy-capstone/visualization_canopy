@@ -27,6 +27,9 @@ function load_gradient(thickness, min, max, transparency) {
   const color_arr = new Uint8Array(thickness.length * 4);
   let normalizedVal, curr_thickness;
 
+  // const r = Math.abs(rgb_max[0] - rgb_min[0]);
+  // const g = Math.abs(rgb_max[1] - rgb_min[1]);
+  // const b = Math.abs(rgb_max[2] - rgb_min[2]);
   // Iterate through every value in the thickness file and assign a color corresponding to it
   for (let i = 0; i < color_arr.length; i += 4) {
     curr_thickness = thickness[i / 4];
@@ -44,12 +47,25 @@ function load_gradient(thickness, min, max, transparency) {
   return color_arr;
 }
 
+function hexToRgb(hex) {
+  var bigint = parseInt(hex, 16);
+  var r = (bigint >> 16) & 255;
+  var g = (bigint >> 8) & 255;
+  var b = bigint & 255;
+
+  return [r, g, b];
+}
+
 let minThickness, maxThickness, thicknessValues;
+const rgbToHex = (rgb) => `#${rgb.map((val) => val.toString(16).padStart(2, '0')).join('')}`;
+
 function App() {
   const vtkContainerRef = useRef(null);
   const [transparency, setTransparency] = useState(1.0);
   const [initialized, setInitialized] = useState(false);
   const fullScreenRendererRef = useRef(null);
+  const [rgb_min, setRgb_min] = useState([255, 0, 0]);
+  const [rgb_max, setRgb_max] = useState([0, 0, 255]);
 
   // Load STL and initialize thickness values on component mount
   useEffect(() => {
@@ -100,33 +116,56 @@ function App() {
       loadSTL();
     }
   },);
+  // [transparency, rgb_min, rgb_max]
 
   // Update color array when transparency changes
   useEffect(() => {
-    if (initialized && fullScreenRendererRef.current) {
-      const renderer = fullScreenRendererRef.current.getRenderer();
-      const actor = renderer.getActors()[0]; // Assuming there is only one actor
+    const loadColor = async () => {
+      if (initialized && fullScreenRendererRef.current) {
+        const renderer = fullScreenRendererRef.current.getRenderer();
+        const actor = renderer.getActors()[0]; // Assuming there is only one actor
 
-      if (actor) {
-        const colors = load_gradient(thicknessValues, minThickness, maxThickness, transparency);
-        const colorDataArray = vtkDataArray.newInstance({
-          name: 'Colors',
-          values: colors,
-          numberOfComponents: 4,
-        });
+        if (actor) {
+          const colors = load_gradient(thicknessValues, minThickness, maxThickness, transparency);
+          const colorDataArray = vtkDataArray.newInstance({
+            name: 'Colors',
+            values: colors,
+            numberOfComponents: 4,
+          });
 
+          actor.getMapper().getInputData().getCellData().setScalars(colorDataArray);
+          console.log('Scalars Updated:', colorDataArray);
 
-        actor.getMapper().getInputData().getCellData().setScalars(colorDataArray);
-        fullScreenRendererRef.current.getRenderWindow().render();
+          fullScreenRendererRef.current.getRenderWindow().render();
+        }
       }
     }
+    loadColor();
   }, [transparency, initialized]);
 
+
+  // <input
+  //       type="color"
+  //       id="colorpicker"
+  //       value={rgbToHex(rgb_min)}
+  //       onChange={(e) => setRgb_min([...parseInt(e.target.value.slice(1, 3), 16), ...parseInt(e.target.value.slice(3, 5), 16), ...parseInt(e.target.value.slice(5), 16)])}
+  //       style={{ zIndex: 2, marginTop: '20px', left: '100px' }}
+  //     ></input>
+  //     <label for="colorpicker" style={{ zIndex: 2, marginTop: '20px' }}> To </label>
+  //     <input
+  //       type="color"
+  //       id="colorpicker"
+  //       value={rgbToHex(rgb_max)}
+  //       onChange={(e) => setRgb_max([...parseInt(e.target.value.slice(1, 3), 16), ...parseInt(e.target.value.slice(3, 5), 16), ...parseInt(e.target.value.slice(5), 16)])}
+  //       style={{ zIndex: 2, marginTop: '20px' }}
+  //     ></input>
   return (
     <div style={{ display: 'flex', flexDirection: 'row' }}>
       <div ref={vtkContainerRef} style={{ flex: 1 }}>
         {/* Adjust the flex property based on your layout */}
       </div>
+      
+
       <div
         style={{
           display: 'flex',
@@ -155,6 +194,7 @@ function App() {
         {transparency}
         <label htmlFor="transparencySlider" style={{ zIndex: 2, marginTop: '60px' }}>Max: {maxThickness}</label>
       </div>
+      
     </div>
   );
 }

@@ -33,9 +33,9 @@ function load_gradient(thickness, min, max, transparency, startColor, endColor) 
     curr_thickness = Math.log(curr_thickness + 1); // Adding 1 to avoid log(0)
     normalizedVal = (curr_thickness - Math.log(min + 1)) / (Math.log(max + 1) - Math.log(min + 1));
 
-    color_arr[i] = Math.round(startColor.r + (endColor.r - startColor.r) * normalizedVal);
-    color_arr[i + 1] = Math.round(startColor.g + (endColor.g - startColor.g) * normalizedVal);
-    color_arr[i + 2] = Math.round(startColor.b + (endColor.b - startColor.b) * normalizedVal);
+    color_arr[i] = Math.round(startColor.r + (startColor.r - endColor.r) * normalizedVal);
+    color_arr[i + 1] = Math.round(startColor.g + (startColor.g - endColor.g) * normalizedVal);
+    color_arr[i + 2] = Math.round(startColor.b + (startColor.b - endColor.b) * normalizedVal);
     color_arr[i + 3] = normalizedVal <= transparency ? 255 : 0;
   }
 
@@ -47,7 +47,7 @@ function App() {
   const vtkContainerRef = useRef(null);
   const [transparency, setTransparency] = useState(1.0);
   const [initialized, setInitialized] = useState(false);
-  const [startColor, setStartColor] = useState({ r: 0, g: 0, b: 255 });
+  const [startColor, setStartColor] = useState({ r: 255, g: 0, b: 0 });
   const [endColor, setEndColor] = useState({ r: 0, g: 0, b: 255 });
   const fullScreenRendererRef = useRef(null);
 

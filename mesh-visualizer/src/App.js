@@ -8,13 +8,14 @@ import vtkActor from '@kitware/vtk.js/Rendering/Core/Actor';
 import vtkMapper from '@kitware/vtk.js/Rendering/Core/Mapper';
 import vtkSTLReader from '@kitware/vtk.js/IO/Geometry/STLReader';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
+import vtkCellPicker from "@kitware/vtk.js/Rendering/Core/CellPicker";
 
 // Function to load the thickness text file
 function readThicknessValuesFromFile(url) {
   return fetch(url)
-    .then((response) => response.text())
-    .then((data) => data.trim().split('\n').map(Number))
-    .catch((error) => {
+    .then(response => response.text())
+    .then(data => data.trim().split('\n').map(Number))
+    .catch(error => {
       console.error('Error reading the file:', error);
       return [];
     });
@@ -49,7 +50,9 @@ function App() {
   const [initialized, setInitialized] = useState(false);
   const [startColor, setStartColor] = useState({ r: 255, g: 0, b: 0 });
   const [endColor, setEndColor] = useState({ r: 0, g: 0, b: 255 });
+  const [debugInfo, setDebugInfo] = useState(null);
   const fullScreenRendererRef = useRef(null);
+
 
   // Load STL and initialize thickness values on component mount
   useEffect(() => {
@@ -73,7 +76,8 @@ function App() {
         const actor = vtkActor.newInstance();
         actor.setMapper(mapper);
 
-        thicknessValues = await readThicknessValuesFromFile('./test_items/bunny/thickness.txt');
+        // thicknessValues = await readThicknessValuesFromFile('./test_items/bunny/thickness.txt');
+        thicknessValues = await readThicknessValuesFromFile('./thickness.txt');
         minThickness = Math.min(...thicknessValues);
         maxThickness = Math.max(...thicknessValues);
 
@@ -97,7 +101,44 @@ function App() {
         renderer.addActor(actor);
         renderer.resetCamera();
         fullScreenRendererRef.current.getRenderWindow().render();
-        setInitialized(true);
+
+        // setup picker
+        fullScreenRendererRef.current.getRenderWindow().getInteractor().onRightButtonPress(callData =>
+        {
+          if (renderer !== callData.pokedRenderer)
+          {
+            return;
+          }
+
+          const picker = vtkCellPicker.newInstance();
+          picker.setPickFromList(1);
+          picker.setTolerance(0);
+          picker.initializePickList();
+          picker.addPickList(actor);
+
+          const pos = callData.position;
+          const point = [pos.x, pos.y, pos.z];
+          console.log(`Pick at: ${point}`);
+          picker.pick(point, renderer);
+
+          const pickedCellId = picker.getCellId()
+          console.log("picked cell: ", pickedCellId)
+          const updatedDebugInfo = {
+            x: pos.x,
+            y: pos.y,
+            z: pos.z,
+            polygonId: pickedCellId
+          }
+
+          if (pickedCellId === -1)
+          {
+            setDebugInfo(null);
+            return;
+          }
+          setDebugInfo(updatedDebugInfo);
+        })
+
+        setInitialized(true)
       } catch (error) {
         console.error('Error loading STL:', error);
       }
@@ -105,6 +146,8 @@ function App() {
 
     loadSTL();
   }, [startColor, endColor, transparency]);
+
+  // [transparency, rgb_min, rgb_max]
 
   // Update color array when transparency changes
   useEffect(() => {
@@ -188,6 +231,21 @@ function App() {
           />
         </td>
       </div>
+      {debugInfo &&
+          <div style={{
+            position: 'fixed',
+            bottom: 10,
+            left: 10
+          }}>
+            <div>Debug info:</div>
+            <div>x: {debugInfo.x}</div>
+            <div>y: {debugInfo.y}</div>
+            <div>z: {debugInfo.z}</div>
+            <div>polygonId: {debugInfo.polygonId}</div>
+            <div>thickness: {thicknessValues[debugInfo.polygonId]} mm</div>
+          </div>}
+
+
     </div>
   );
 }

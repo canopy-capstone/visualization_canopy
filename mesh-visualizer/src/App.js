@@ -99,7 +99,11 @@ function App() {
 
         reader.getOutputData().getCellData().setScalars(colorDataArray);
 
-        renderer.addActor(actor);
+        if (renderer.getActors().length < 1)
+        {
+          renderer.addActor(actor);
+        }
+
         renderer.resetCamera();
         fullScreenRendererRef.current.getRenderWindow().render();
 
@@ -156,6 +160,7 @@ function App() {
       console.log("updating array")
       const renderer = fullScreenRendererRef.current.getRenderer();
       const actor = renderer.getActors()[0]; // Assuming there is only one actor
+      console.log(renderer.getActors().length)
 
       if (actor) {
         const colors = load_gradient(

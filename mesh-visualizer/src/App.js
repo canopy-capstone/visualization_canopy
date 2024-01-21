@@ -77,7 +77,7 @@ function App() {
         actor.setMapper(mapper);
 
         // thicknessValues = await readThicknessValuesFromFile('./test_items/bunny/thickness.txt');
-        thicknessValues = await readThicknessValuesFromFile('./thickness.txt');
+        thicknessValues = await readThicknessValuesFromFile('./test_items/bunny/thickness.txt');
         minThickness = Math.min(...thicknessValues);
         maxThickness = Math.max(...thicknessValues);
 

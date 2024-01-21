@@ -90,6 +90,7 @@ function App() {
           startColor,
           endColor
         );
+
         const colorDataArray = vtkDataArray.newInstance({
           name: 'Colors',
           values: colors,
@@ -145,13 +146,14 @@ function App() {
     };
 
     loadSTL();
-  }, [startColor, endColor, transparency]);
+  }, []);
 
   // [transparency, rgb_min, rgb_max]
 
   // Update color array when transparency changes
   useEffect(() => {
     if (initialized && fullScreenRendererRef.current) {
+      console.log("updating array")
       const renderer = fullScreenRendererRef.current.getRenderer();
       const actor = renderer.getActors()[0]; // Assuming there is only one actor
 
@@ -171,7 +173,11 @@ function App() {
         });
 
         actor.getMapper().getInputData().getCellData().setScalars(colorDataArray);
+        actor.getMapper().getInputData().modified();
+        actor.getMapper().modified();
+        console.log(actor.getMapper().getInputData().getCellData().getScalars().getData())
         fullScreenRendererRef.current.getRenderWindow().render();
+
       }
     }
   }, [transparency, initialized, startColor, endColor]);

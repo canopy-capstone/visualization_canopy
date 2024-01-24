@@ -1,14 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
-
 import '@kitware/vtk.js/Rendering/Profiles/Geometry';
-
 import vtkFullScreenRenderWindow from '@kitware/vtk.js/Rendering/Misc/FullScreenRenderWindow';
-
 import vtkActor from '@kitware/vtk.js/Rendering/Core/Actor';
 import vtkMapper from '@kitware/vtk.js/Rendering/Core/Mapper';
 import vtkSTLReader from '@kitware/vtk.js/IO/Geometry/STLReader';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkCellPicker from "@kitware/vtk.js/Rendering/Core/CellPicker";
+import axios from 'axios';
+
 
 // Function to load the thickness text file
 function readThicknessValuesFromFile(url) {
@@ -52,6 +51,46 @@ function App() {
   const [endColor, setEndColor] = useState({ r: 0, g: 0, b: 255 });
   const [debugInfo, setDebugInfo] = useState(null);
   const fullScreenRendererRef = useRef(null);
+  const [uploadedFiles, setUploadedFiles] = useState([]);
+  const [STL, setSTL] = useState(null);
+  const [thickness_txt, setthickness_txt] = useState(null);
+
+  function handleFile1Change(event) {
+    setSTL(event.target.files[0]);
+  }
+
+  function handleFile2Change(event) {
+    setthickness_txt(event.target.files[0]);
+  }
+
+  async function handleMultipleSubmit(event) {
+    event.preventDefault();
+
+    if (!STL || !thickness_txt) {
+      console.error("Please upload both files");
+      return;
+    }
+
+    const url = 'http://localhost:3000';
+    const formData = new FormData();
+    formData.append('STL', STL);
+    formData.append('thickness_txt', thickness_txt);
+    console.log(formData, STL, thickness_txt);
+
+    try {
+      const response = await axios.post(url, formData);
+      console.log("trying to understand", response.data);
+      setUploadedFiles(response.data.files);
+
+      // Replace these lines with the uploaded file paths
+      const stlFilePath = response.data.stlFilePath;
+      const thicknessFilePath = response.data.thicknessFilePath;
+
+      loadSTL(stlFilePath, thicknessFilePath);
+    } catch (error) {
+      console.error("Error uploading files: ", error);
+    }
+  }
 
 
   // Load STL and initialize thickness values on component mount
@@ -187,6 +226,95 @@ function App() {
     }
   }, [transparency, initialized, startColor, endColor]);
 
+  // Declare loadSTL function outside useEffect
+  const loadSTL = async () => {
+    const reader = vtkSTLReader.newInstance();
+    await reader.setUrl('./test_items/bunny/thickness_model.stl');
+
+    try {
+      if (!fullScreenRendererRef.current) {
+        fullScreenRendererRef.current = vtkFullScreenRenderWindow.newInstance({
+          rootContainer: vtkContainerRef.current,
+        });
+      }
+
+      const renderer = fullScreenRendererRef.current.getRenderer();
+      renderer.getActors().forEach((actor) => renderer.removeActor(actor));
+
+      const mapper = vtkMapper.newInstance();
+      mapper.setInputData(reader.getOutputData());
+
+      const actor = vtkActor.newInstance();
+      actor.setMapper(mapper);
+
+      thicknessValues = await readThicknessValuesFromFile('./test_items/bunny/thickness.txt');
+      minThickness = Math.min(...thicknessValues);
+      maxThickness = Math.max(...thicknessValues);
+
+      // Initial color array
+      const colors = load_gradient(
+        thicknessValues,
+        minThickness,
+        maxThickness,
+        transparency,
+        startColor,
+        endColor
+      );
+
+      const colorDataArray = vtkDataArray.newInstance({
+        name: 'Colors',
+        values: colors,
+        numberOfComponents: 4,
+      });
+
+      reader.getOutputData().getCellData().setScalars(colorDataArray);
+
+      if (renderer.getActors().length < 1) {
+        renderer.addActor(actor);
+      }
+
+      renderer.resetCamera();
+      fullScreenRendererRef.current.getRenderWindow().render();
+
+      // setup picker
+      fullScreenRendererRef.current.getRenderWindow().getInteractor().onRightButtonPress((callData) => {
+        if (renderer !== callData.pokedRenderer) {
+          return;
+        }
+
+        const picker = vtkCellPicker.newInstance();
+        picker.setPickFromList(1);
+        picker.setTolerance(0);
+        picker.initializePickList();
+        picker.addPickList(actor);
+
+        const pos = callData.position;
+        const point = [pos.x, pos.y, pos.z];
+        console.log(`Pick at: ${point}`);
+        picker.pick(point, renderer);
+
+        const pickedCellId = picker.getCellId();
+        console.log("picked cell: ", pickedCellId);
+        const updatedDebugInfo = {
+          x: pos.x,
+          y: pos.y,
+          z: pos.z,
+          polygonId: pickedCellId,
+        };
+
+        if (pickedCellId === -1) {
+          setDebugInfo(null);
+          return;
+        }
+        setDebugInfo(updatedDebugInfo);
+      });
+
+      setInitialized(true);
+    } catch (error) {
+      console.error('Error loading STL:', error);
+    }
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'row' }}>
       <div ref={vtkContainerRef} style={{ flex: 1 }}>
@@ -220,6 +348,9 @@ function App() {
           onChange={(e) => setTransparency(parseFloat(e.target.value))}
         />
         {transparency}
+        <label htmlFor="transparencySlider" style={{ zIndex: 2, marginTop: '70px' }}>
+          Max: {maxThickness}
+        </label>
         <td align="center" style={{ zIndex: 2, position: 'absolute', top: '10px' }}>
           <label htmlFor="startColor">From:</label>
           <input
@@ -255,8 +386,26 @@ function App() {
             <div>polygonId: {debugInfo.polygonId}</div>
             <div>thickness: {thicknessValues[debugInfo.polygonId]} mm</div>
           </div>}
-
-
+          <div style={{
+            position: 'fixed',
+            top: 10,
+            left: 10
+          }}>
+            <form onSubmit={handleMultipleSubmit}>
+              <div>
+                <label htmlFor="STL">STL:</label>
+                <input type="file" id="STL" accept=".stl" onChange={handleFile1Change} />
+              </div>
+              <div>
+                <label htmlFor="thickness_txt">TXT:</label>
+                <input type="file" id="thickness_txt" accept=".txt" onChange={handleFile2Change} />
+              </div>
+              <button type="submit">Upload</button>
+            </form>
+            {uploadedFiles.map((file, index) => (
+              <img key={index} src={file} alt={`Uploaded content ${index}`} />
+            ))}
+          </div>
     </div>
   );
 }

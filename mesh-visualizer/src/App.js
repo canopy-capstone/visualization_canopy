@@ -42,6 +42,8 @@ function load_gradient(thickness, min, max, transparency, startColor, endColor) 
   return color_arr;
 }
 
+
+
 let minThickness, maxThickness, thicknessValues;
 function App() {
   const vtkContainerRef = useRef(null);

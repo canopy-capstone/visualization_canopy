@@ -6,7 +6,6 @@ import vtkMapper from '@kitware/vtk.js/Rendering/Core/Mapper';
 import vtkSTLReader from '@kitware/vtk.js/IO/Geometry/STLReader';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkCellPicker from "@kitware/vtk.js/Rendering/Core/CellPicker";
-import axios from 'axios';
 
 
 // Function to load the thickness text file
@@ -43,7 +42,8 @@ function load_gradient(thickness, min, max, transparency, startColor, endColor) 
 }
 
 
-
+// let stlfile = './test_items/bunny/thickness_model.stl';
+// let txtfile = './test_items/bunny/thickness.txt';
 let minThickness, maxThickness, thicknessValues;
 function App() {
   const vtkContainerRef = useRef(null);
@@ -53,53 +53,19 @@ function App() {
   const [endColor, setEndColor] = useState({ r: 0, g: 0, b: 255 });
   const [debugInfo, setDebugInfo] = useState(null);
   const fullScreenRendererRef = useRef(null);
-  const [uploadedFiles, setUploadedFiles] = useState([]);
-  const [STL, setSTL] = useState(null);
-  const [thickness_txt, setthickness_txt] = useState(null);
-
-  function handleFile1Change(event) {
-    setSTL(event.target.files[0]);
-  }
-
-  function handleFile2Change(event) {
-    setthickness_txt(event.target.files[0]);
-  }
-
-  async function handleMultipleSubmit(event) {
-    event.preventDefault();
-
-    if (!STL || !thickness_txt) {
-      console.error("Please upload both files");
-      return;
-    }
-
-    const url = 'http://localhost:3000';
-    const formData = new FormData();
-    formData.append('STL', STL);
-    formData.append('thickness_txt', thickness_txt);
-    console.log(formData, STL, thickness_txt);
-
-    try {
-      const response = await axios.post(url, formData);
-      console.log("trying to understand", response.data);
-      setUploadedFiles(response.data.files);
-
-      // Replace these lines with the uploaded file paths
-      const stlFilePath = response.data.stlFilePath;
-      const thicknessFilePath = response.data.thicknessFilePath;
-
-      loadSTL(stlFilePath, thicknessFilePath);
-    } catch (error) {
-      console.error("Error uploading files: ", error);
-    }
-  }
+  const [stlFile, setStlFile] = useState(null);
+  const [txtFile, setTxtFile] = useState(null);
 
 
   // Load STL and initialize thickness values on component mount
   useEffect(() => {
     const loadSTL = async () => {
       const reader = vtkSTLReader.newInstance();
+      // if (stlfile){
+      //   await reader.setUrl(stlfile)
+      // }else{
       await reader.setUrl('./test_items/bunny/thickness_model.stl');
+      // }
 
       try {
         if (!fullScreenRendererRef.current) {
@@ -118,7 +84,11 @@ function App() {
         actor.setMapper(mapper);
 
         // thicknessValues = await readThicknessValuesFromFile('./test_items/bunny/thickness.txt');
+        // if (txtfile){
+        //   thicknessValues = await readThicknessValuesFromFile(txtfile);
+        // }else{
         thicknessValues = await readThicknessValuesFromFile('./test_items/bunny/thickness.txt');
+        // }
         minThickness = Math.min(...thicknessValues);
         maxThickness = Math.max(...thicknessValues);
 
@@ -191,17 +161,14 @@ function App() {
     };
 
     loadSTL();
-  }, []);
+  }, );
 
-  // [transparency, rgb_min, rgb_max]
 
   // Update color array when transparency changes
   useEffect(() => {
     if (initialized && fullScreenRendererRef.current) {
-      console.log("updating array")
       const renderer = fullScreenRendererRef.current.getRenderer();
       const actor = renderer.getActors()[0]; // Assuming there is only one actor
-      console.log(renderer.getActors().length)
 
       if (actor) {
         const colors = load_gradient(
@@ -221,101 +188,121 @@ function App() {
         actor.getMapper().getInputData().getCellData().setScalars(colorDataArray);
         actor.getMapper().getInputData().modified();
         actor.getMapper().modified();
-        console.log(actor.getMapper().getInputData().getCellData().getScalars().getData())
         fullScreenRendererRef.current.getRenderWindow().render();
 
       }
     }
   }, [transparency, initialized, startColor, endColor]);
 
-  // Declare loadSTL function outside useEffect
-  const loadSTL = async () => {
-    const reader = vtkSTLReader.newInstance();
-    await reader.setUrl('./test_items/bunny/thickness_model.stl');
+  function handleStlFileChange(event) {
+    const file = event.target.files[0];
+    setStlFile(file);
+  }
 
-    try {
-      if (!fullScreenRendererRef.current) {
-        fullScreenRendererRef.current = vtkFullScreenRenderWindow.newInstance({
-          rootContainer: vtkContainerRef.current,
-        });
-      }
+  // Handle TXT file change
+  function handleTxtFileChange(event) {
+    const file = event.target.files[0];
+    setTxtFile(file);
+  }
 
-      const renderer = fullScreenRendererRef.current.getRenderer();
-      renderer.getActors().forEach((actor) => renderer.removeActor(actor));
-
-      const mapper = vtkMapper.newInstance();
-      mapper.setInputData(reader.getOutputData());
-
-      const actor = vtkActor.newInstance();
-      actor.setMapper(mapper);
-
-      thicknessValues = await readThicknessValuesFromFile('./test_items/bunny/thickness.txt');
-      minThickness = Math.min(...thicknessValues);
-      maxThickness = Math.max(...thicknessValues);
-
-      // Initial color array
-      const colors = load_gradient(
-        thicknessValues,
-        minThickness,
-        maxThickness,
-        transparency,
-        startColor,
-        endColor
-      );
-
-      const colorDataArray = vtkDataArray.newInstance({
-        name: 'Colors',
-        values: colors,
-        numberOfComponents: 4,
-      });
-
-      reader.getOutputData().getCellData().setScalars(colorDataArray);
-
-      if (renderer.getActors().length < 1) {
-        renderer.addActor(actor);
-      }
-
-      renderer.resetCamera();
-      fullScreenRendererRef.current.getRenderWindow().render();
-
-      // setup picker
-      fullScreenRendererRef.current.getRenderWindow().getInteractor().onRightButtonPress((callData) => {
-        if (renderer !== callData.pokedRenderer) {
-          return;
+  useEffect(() => {
+    const loadnewSTL = async () => {
+      if (!stlFile || !txtFile) return;
+  
+      // Process the STL file
+      const stlReader = vtkSTLReader.newInstance();
+      const stlFileReader = new FileReader();
+      stlFileReader.onload = async (e) => {
+        const stlContents = e.target.result;
+        stlReader.parseAsArrayBuffer(stlContents);
+  
+        if (!fullScreenRendererRef.current) {
+          fullScreenRendererRef.current = vtkFullScreenRenderWindow.newInstance({
+            rootContainer: vtkContainerRef.current,
+          });
         }
-
-        const picker = vtkCellPicker.newInstance();
-        picker.setPickFromList(1);
-        picker.setTolerance(0);
-        picker.initializePickList();
-        picker.addPickList(actor);
-
-        const pos = callData.position;
-        const point = [pos.x, pos.y, pos.z];
-        console.log(`Pick at: ${point}`);
-        picker.pick(point, renderer);
-
-        const pickedCellId = picker.getCellId();
-        console.log("picked cell: ", pickedCellId);
-        const updatedDebugInfo = {
-          x: pos.x,
-          y: pos.y,
-          z: pos.z,
-          polygonId: pickedCellId,
+  
+        const renderer = fullScreenRendererRef.current.getRenderer();
+        renderer.getActors().forEach((actor) => renderer.removeActor(actor));
+  
+        const mapper = vtkMapper.newInstance();
+        mapper.setInputData(stlReader.getOutputData());
+  
+        const actor = vtkActor.newInstance();
+        actor.setMapper(mapper);
+  
+        // Process the TXT file
+        const txtFileReader = new FileReader();
+        txtFileReader.onload = async (e) => {
+          const txtContents = e.target.result;
+          const thicknessValues = txtContents.trim().split('\n').map(Number);
+          const minThickness = Math.min(...thicknessValues);
+          const maxThickness = Math.max(...thicknessValues);
+  
+          const colors = load_gradient(
+            thicknessValues,
+            minThickness,
+            maxThickness,
+            transparency,
+            startColor,
+            endColor
+          );
+  
+          const colorDataArray = vtkDataArray.newInstance({
+            name: 'Colors',
+            values: colors,
+            numberOfComponents: 4,
+          });
+  
+          stlReader.getOutputData().getCellData().setScalars(colorDataArray);
+  
+          renderer.addActor(actor);
+          renderer.resetCamera();
+          fullScreenRendererRef.current.getRenderWindow().render();
         };
+        txtFileReader.readAsText(txtFile);
+      };
+      stlFileReader.readAsArrayBuffer(stlFile);
+    };
+  
+    loadnewSTL();
+  }, [stlFile, txtFile, transparency, startColor, endColor]);
+  
+  // function update() {
+  //   const fullScreenRenderer = vtkFullScreenRenderWindow.newInstance();
+  //   const renderer = fullScreenRenderer.getRenderer();
+  //   const renderWindow = fullScreenRenderer.getRenderWindow();
+  
+  //   const resetCamera = renderer.resetCamera;
+  //   const render = renderWindow.render;
+  
+  //   renderer.addActor(actor);
+  //   resetCamera();
+  //   render();
+  // }
 
-        if (pickedCellId === -1) {
-          setDebugInfo(null);
-          return;
-        }
-        setDebugInfo(updatedDebugInfo);
-      });
+  // const myContainer = document.querySelector('body');
+  // const fileContainer = document.createElement('div');
+  // fileContainer.innerHTML = '<input type="file" class="file"/>';
+  // myContainer.appendChild(fileContainer);
 
-      setInitialized(true);
-    } catch (error) {
-      console.error('Error loading STL:', error);
-    }
-  };
+  // const fileInput = fileContainer.querySelector('input');
+
+  // function handleFile(event) {
+  //   event.preventDefault();
+  //   const dataTransfer = event.dataTransfer;
+  //   const files = event.target.files || dataTransfer.files;
+  //   if (files.length === 1) {
+  //     myContainer.removeChild(fileContainer);
+  //     const fileReader = new FileReader();
+  //     fileReader.onload = function onLoad(e) {
+  //       reader.parseAsArrayBuffer(fileReader.result);
+  //       update();
+  //     };
+  //     fileReader.readAsArrayBuffer(files[0]);
+  //   }
+  // }
+  // fileInput.addEventListener('change', handleFile);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'row' }}>
@@ -388,25 +375,17 @@ function App() {
             <div>polygonId: {debugInfo.polygonId}</div>
             <div>thickness: {thicknessValues[debugInfo.polygonId]} mm</div>
           </div>}
-          <div style={{
-            position: 'fixed',
-            top: 10,
-            left: 10
-          }}>
-            <form onSubmit={handleMultipleSubmit}>
+          <div style={{ position: 'fixed', top: 10, left: 10 }}>
+            <form onSubmit={(e) => e.preventDefault()}>
               <div>
                 <label htmlFor="STL">STL:</label>
-                <input type="file" id="STL" accept=".stl" onChange={handleFile1Change} />
+                <input type="file" id="STL" accept=".stl" onChange={handleStlFileChange} />
               </div>
               <div>
                 <label htmlFor="thickness_txt">TXT:</label>
-                <input type="file" id="thickness_txt" accept=".txt" onChange={handleFile2Change} />
+                <input type="file" id="thickness_txt" accept=".txt" onChange={handleTxtFileChange} />
               </div>
-              <button type="submit">Upload</button>
             </form>
-            {uploadedFiles.map((file, index) => (
-              <img key={index} src={file} alt={`Uploaded content ${index}`} />
-            ))}
           </div>
     </div>
   );

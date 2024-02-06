@@ -216,6 +216,22 @@ function App() {
     // Add any other logic you need to handle on form submission, like reading the file inputs
   }
 
+  const rgbToHex = (color) => {
+    const {r, g, b} = color;
+    return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+  };
+
+  const sliderStyle = {
+    background: `linear-gradient(to right, ${rgbToHex(endColor)} , ${rgbToHex(startColor)})`,
+    width: '400px',
+    height: '10px', // Adjust the height to fit your design
+    borderRadius: '5px', // Optional: adds rounded corners to the slider background
+    padding: '0', // Removes default padding
+    transform: 'rotate(-90deg)',
+    backgroundColor: '#3498db',
+    marginBottom: '20px',
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'row' }}>
       <div ref={vtkContainerRef} style={{ flex: 1 }}>
@@ -230,26 +246,30 @@ function App() {
           height: '100vh', // Make the container full height
         }}
       >
-        <label htmlFor="transparencySlider" style={{ zIndex: 2, marginBottom: '100px' }}>
+        <label htmlFor="transparencySlider" style={{ zIndex: 2, position: 'absolute', top: '100px' }}>
           Min: {minThickness}
         </label>
-        <input
-          style={{
-            width: '400px',
-            height: '200px',
-            transform: 'rotate(-90deg)',
-            backgroundColor: '#3498db',
-            marginBottom: '20px',
-          }}
-          type="range"
-          min="0"
-          max="1"
-          step="0.01"
-          value={transparency}
-          onChange={(e) => setTransparency(parseFloat(e.target.value))}
-        />
+        <div style={sliderStyle}>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.01"
+            value={transparency}
+            onChange={(e) => setTransparency(parseFloat(e.target.value))}
+            style={{
+              width: '100%',
+              height: '0%', // Make sure the slider thumb covers the gradient area
+              opacity: 1,
+              cursor: 'pointer', // Optional: changes the cursor on hover over the slider
+              position: 'absolute',
+              right: '-2px',
+              top: '3px'
+            }}
+          />
+        </div>
         {transparency}
-        <label htmlFor="transparencySlider" style={{ zIndex: 2, marginTop: '70px' }}>
+        <label htmlFor="transparencySlider" style={{ zIndex: 2, position: 'absolute', bottom: '150px' }}>
           Max: {maxThickness}
         </label>
         <td align="center" style={{ zIndex: 2, position: 'absolute', top: '10px' }}>

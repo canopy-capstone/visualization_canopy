@@ -60,12 +60,15 @@ function App() {
   // Load STL and initialize thickness values on component mount
   useEffect(() => {
     const loadSTL = async () => {
+      if(initialized){
+        return;
+      }
       const reader = vtkSTLReader.newInstance();
-      // if (stlfile){
-      //   await reader.setUrl(stlfile)
-      // }else{
-      await reader.setUrl('./test_items/bunny/thickness_model.stl');
-      // }
+      if (stlFile){
+        await reader.setUrl(stlFile)
+      }else{
+        await reader.setUrl('./test_items/bunny/thickness_model.stl');
+      }
 
       try {
         if (!fullScreenRendererRef.current) {
@@ -84,11 +87,11 @@ function App() {
         actor.setMapper(mapper);
 
         // thicknessValues = await readThicknessValuesFromFile('./test_items/bunny/thickness.txt');
-        // if (txtfile){
-        //   thicknessValues = await readThicknessValuesFromFile(txtfile);
-        // }else{
-        thicknessValues = await readThicknessValuesFromFile('./test_items/bunny/thickness.txt');
-        // }
+        if (txtFile){
+          thicknessValues = await readThicknessValuesFromFile(txtFile);
+        }else{
+          thicknessValues = await readThicknessValuesFromFile('./test_items/bunny/thickness.txt');
+        }
         minThickness = Math.min(...thicknessValues);
         maxThickness = Math.max(...thicknessValues);
 
@@ -161,7 +164,7 @@ function App() {
     };
 
     loadSTL();
-  }, );
+  }, [initialized]);
 
 
   // Update color array when transparency changes
@@ -196,113 +199,22 @@ function App() {
 
   function handleStlFileChange(event) {
     const file = event.target.files[0];
-    setStlFile(file);
+    setStlFile(file.name);
+    // console.log(file);
   }
 
   // Handle TXT file change
   function handleTxtFileChange(event) {
     const file = event.target.files[0];
-    setTxtFile(file);
+    setTxtFile(file.name);
+    console.log(file);
   }
 
-  useEffect(() => {
-    const loadnewSTL = async () => {
-      if (!stlFile || !txtFile) return;
-  
-      // Process the STL file
-      const stlReader = vtkSTLReader.newInstance();
-      const stlFileReader = new FileReader();
-      stlFileReader.onload = async (e) => {
-        const stlContents = e.target.result;
-        stlReader.parseAsArrayBuffer(stlContents);
-  
-        if (!fullScreenRendererRef.current) {
-          fullScreenRendererRef.current = vtkFullScreenRenderWindow.newInstance({
-            rootContainer: vtkContainerRef.current,
-          });
-        }
-  
-        const renderer = fullScreenRendererRef.current.getRenderer();
-        renderer.getActors().forEach((actor) => renderer.removeActor(actor));
-  
-        const mapper = vtkMapper.newInstance();
-        mapper.setInputData(stlReader.getOutputData());
-  
-        const actor = vtkActor.newInstance();
-        actor.setMapper(mapper);
-  
-        // Process the TXT file
-        const txtFileReader = new FileReader();
-        txtFileReader.onload = async (e) => {
-          const txtContents = e.target.result;
-          const thicknessValues = txtContents.trim().split('\n').map(Number);
-          const minThickness = Math.min(...thicknessValues);
-          const maxThickness = Math.max(...thicknessValues);
-  
-          const colors = load_gradient(
-            thicknessValues,
-            minThickness,
-            maxThickness,
-            transparency,
-            startColor,
-            endColor
-          );
-  
-          const colorDataArray = vtkDataArray.newInstance({
-            name: 'Colors',
-            values: colors,
-            numberOfComponents: 4,
-          });
-  
-          stlReader.getOutputData().getCellData().setScalars(colorDataArray);
-  
-          renderer.addActor(actor);
-          renderer.resetCamera();
-          fullScreenRendererRef.current.getRenderWindow().render();
-        };
-        txtFileReader.readAsText(txtFile);
-      };
-      stlFileReader.readAsArrayBuffer(stlFile);
-    };
-  
-    loadnewSTL();
-  }, [stlFile, txtFile, transparency, startColor, endColor]);
-  
-  // function update() {
-  //   const fullScreenRenderer = vtkFullScreenRenderWindow.newInstance();
-  //   const renderer = fullScreenRenderer.getRenderer();
-  //   const renderWindow = fullScreenRenderer.getRenderWindow();
-  
-  //   const resetCamera = renderer.resetCamera;
-  //   const render = renderWindow.render;
-  
-  //   renderer.addActor(actor);
-  //   resetCamera();
-  //   render();
-  // }
-
-  // const myContainer = document.querySelector('body');
-  // const fileContainer = document.createElement('div');
-  // fileContainer.innerHTML = '<input type="file" class="file"/>';
-  // myContainer.appendChild(fileContainer);
-
-  // const fileInput = fileContainer.querySelector('input');
-
-  // function handleFile(event) {
-  //   event.preventDefault();
-  //   const dataTransfer = event.dataTransfer;
-  //   const files = event.target.files || dataTransfer.files;
-  //   if (files.length === 1) {
-  //     myContainer.removeChild(fileContainer);
-  //     const fileReader = new FileReader();
-  //     fileReader.onload = function onLoad(e) {
-  //       reader.parseAsArrayBuffer(fileReader.result);
-  //       update();
-  //     };
-  //     fileReader.readAsArrayBuffer(files[0]);
-  //   }
-  // }
-  // fileInput.addEventListener('change', handleFile);
+  function handleFormSubmit(event) {
+    event.preventDefault(); // Prevent default form submission behavior
+    setInitialized(false);
+    // Add any other logic you need to handle on form submission, like reading the file inputs
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'row' }}>
@@ -376,7 +288,7 @@ function App() {
             <div>thickness: {thicknessValues[debugInfo.polygonId]} mm</div>
           </div>}
           <div style={{ position: 'fixed', top: 10, left: 10 }}>
-            <form onSubmit={(e) => e.preventDefault()}>
+            <form onSubmit={handleFormSubmit}>
               <div>
                 <label htmlFor="STL">STL:</label>
                 <input type="file" id="STL" accept=".stl" onChange={handleStlFileChange} />
@@ -385,6 +297,7 @@ function App() {
                 <label htmlFor="thickness_txt">TXT:</label>
                 <input type="file" id="thickness_txt" accept=".txt" onChange={handleTxtFileChange} />
               </div>
+              <button type="submit" style={{ marginTop: '10px' }}>Submit</button>
             </form>
           </div>
     </div>

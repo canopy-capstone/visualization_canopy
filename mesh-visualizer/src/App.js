@@ -6,6 +6,7 @@ import vtkMapper from '@kitware/vtk.js/Rendering/Core/Mapper';
 import vtkSTLReader from '@kitware/vtk.js/IO/Geometry/STLReader';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkCellPicker from "@kitware/vtk.js/Rendering/Core/CellPicker";
+import {max, min} from "lodash";
 
 
 // Function to load the thickness text file
@@ -63,15 +64,17 @@ function App() {
       if(initialized){
         return;
       }
+
       const reader = vtkSTLReader.newInstance();
       if (stlFile){
-        await reader.setUrl(stlFile)
+        const stlBlob = await stlFile.arrayBuffer();
+        reader.parseAsArrayBuffer(stlBlob);
       }else{
         await reader.setUrl('./test_items/bunny/thickness_model.stl');
       }
 
       try {
-        if (!fullScreenRendererRef.current) {
+        if (!fullScreenRendererRef.current && !initialized) {
           fullScreenRendererRef.current = vtkFullScreenRenderWindow.newInstance({
             rootContainer: vtkContainerRef.current,
           });
@@ -88,12 +91,13 @@ function App() {
 
         // thicknessValues = await readThicknessValuesFromFile('./test_items/bunny/thickness.txt');
         if (txtFile){
-          thicknessValues = await readThicknessValuesFromFile(txtFile);
-        }else{
+          thicknessValues = await txtFile.text().then(data => data.trim().split('\n').map(Number));
+          console.log(thicknessValues)
+        } else {
           thicknessValues = await readThicknessValuesFromFile('./test_items/bunny/thickness.txt');
         }
-        minThickness = Math.min(...thicknessValues);
-        maxThickness = Math.max(...thicknessValues);
+        minThickness = min(thicknessValues);
+        maxThickness = max(thicknessValues);
 
         // Initial color array
         const colors = load_gradient(
@@ -199,21 +203,20 @@ function App() {
 
   function handleStlFileChange(event) {
     const file = event.target.files[0];
-    setStlFile(file.name);
-    // console.log(file);
+    setStlFile(file);
+    console.log(file);
   }
 
   // Handle TXT file change
   function handleTxtFileChange(event) {
     const file = event.target.files[0];
-    setTxtFile(file.name);
+    setTxtFile(file);
     console.log(file);
   }
 
   function handleFormSubmit(event) {
     event.preventDefault(); // Prevent default form submission behavior
     setInitialized(false);
-    // Add any other logic you need to handle on form submission, like reading the file inputs
   }
 
   const rgbToHex = (color) => {

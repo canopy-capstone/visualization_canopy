@@ -16,6 +16,9 @@
     "web-vitals": "^2.1.4",
     "wslink": "^1.12.4"
   },
+  "devDependencies": {
+
+  },
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",

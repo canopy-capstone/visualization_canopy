@@ -8,6 +8,20 @@ import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkCellPicker from "@kitware/vtk.js/Rendering/Core/CellPicker";
 import {max, min} from "lodash";
 
+export const VtkDataTypes = {
+  VOID: '', // not sure to know what that should be
+  CHAR: 'Int8Array',
+  SIGNED_CHAR: 'Int8Array',
+  UNSIGNED_CHAR: 'Uint8Array',
+  SHORT: 'Int16Array',
+  UNSIGNED_SHORT: 'Uint16Array',
+  INT: 'Int32Array',
+  UNSIGNED_INT: 'Uint32Array',
+  FLOAT: 'Float32Array',
+  DOUBLE: 'Float64Array',
+};
+
+export const DefaultDataType = VtkDataTypes.DOUBLE;
 
 // Function to load the thickness text file
 function readThicknessValuesFromFile(url) {
@@ -25,13 +39,35 @@ function load_gradient(thickness, min, max, transparency, startColor, endColor) 
   const color_arr = new Uint8Array(thickness.length * 4);
   let normalizedVal, curr_thickness;
 
+  // if (min < 1.0 / 10**7){
+  //   var thick_copy = Array.from(new Set(thickness)).sort();
+  //   const unique_count = thick_copy.length;
+  //   console.log("New set: ", unique_count, thick_copy);
+
+  //   for (let j=0; j<color_arr.length; j+=4){
+      
+  //     curr_thickness = thickness[j/4];
+  //     normalizedVal = thick_copy.indexOf(curr_thickness+1) * (1 / unique_count);
+  //     color_arr[j] = Math.round(startColor.r + (startColor.r - endColor.r) * normalizedVal);
+  //     color_arr[j + 1] = Math.round(startColor.g + (startColor.g - endColor.g) * normalizedVal);
+  //     color_arr[j + 2] = Math.round(startColor.b + (startColor.b - endColor.b) * normalizedVal);
+  //     color_arr[j + 3] = normalizedVal <= transparency ? 255 : 0;
+  //   }
+  //   console.log("done");
+  //   return color_arr;
+  // }
+
   // Iterate through every value in the thickness file and assign a color corresponding to it
   for (let i = 0; i < color_arr.length; i += 4) {
     curr_thickness = thickness[i / 4];
-
     // Apply logarithmic transformation
     curr_thickness = Math.log(curr_thickness + 1); // Adding 1 to avoid log(0)
     normalizedVal = (curr_thickness - Math.log(min + 1)) / (Math.log(max + 1) - Math.log(min + 1));
+    
+    // Ran into some errors loading triangles below a certain range so added this
+    if (normalizedVal < 5.0 / 10**6){
+      normalizedVal = 1 - normalizedVal;
+    }
 
     color_arr[i] = Math.round(startColor.r + (startColor.r - endColor.r) * normalizedVal);
     color_arr[i + 1] = Math.round(startColor.g + (startColor.g - endColor.g) * normalizedVal);
@@ -49,6 +85,7 @@ let minThickness, maxThickness, thicknessValues;
 function App() {
   const vtkContainerRef = useRef(null);
   const [transparency, setTransparency] = useState(1.0);
+  const [stepSize, setStepSize] = useState(0.01);
   const [initialized, setInitialized] = useState(false);
   const [startColor, setStartColor] = useState({ r: 255, g: 0, b: 0 });
   const [endColor, setEndColor] = useState({ r: 0, g: 0, b: 255 });
@@ -92,12 +129,15 @@ function App() {
         // thicknessValues = await readThicknessValuesFromFile('./test_items/bunny/thickness.txt');
         if (txtFile){
           thicknessValues = await txtFile.text().then(data => data.trim().split('\n').map(Number));
-          console.log(thicknessValues)
         } else {
           thicknessValues = await readThicknessValuesFromFile('./test_items/bunny/thickness.txt');
         }
         minThickness = min(thicknessValues);
         maxThickness = max(thicknessValues);
+
+        // if (minThickness < 1.0 / 10**7){
+        //   setStepSize(0.00000001)
+        // }
 
         // Initial color array
         const colors = load_gradient(
@@ -169,7 +209,6 @@ function App() {
 
     loadSTL();
   }, [initialized]);
-
 
   // Update color array when transparency changes
   useEffect(() => {
@@ -257,7 +296,7 @@ function App() {
             type="range"
             min="0"
             max="1"
-            step="0.01"
+            step={stepSize}
             value={transparency}
             onChange={(e) => setTransparency(parseFloat(e.target.value))}
             style={{
@@ -309,6 +348,7 @@ function App() {
             <div>z: {debugInfo.z}</div>
             <div>polygonId: {debugInfo.polygonId}</div>
             <div>thickness: {thicknessValues[debugInfo.polygonId]} mm</div>
+            <div>Log Value: {(Math.log(thicknessValues[debugInfo.polygonId]+1) - Math.log(minThickness + 1)) / (Math.log(maxThickness + 1) - Math.log(minThickness + 1))} </div>
           </div>}
           <div style={{ position: 'fixed', top: 10, left: 10 }}>
             <form onSubmit={handleFormSubmit}>

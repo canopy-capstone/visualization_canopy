@@ -39,24 +39,6 @@ function load_gradient(thickness, min, max, transparency, startColor, endColor) 
   const color_arr = new Uint8Array(thickness.length * 4);
   let normalizedVal, curr_thickness;
 
-  // if (min < 1.0 / 10**7){
-  //   var thick_copy = Array.from(new Set(thickness)).sort();
-  //   const unique_count = thick_copy.length;
-  //   console.log("New set: ", unique_count, thick_copy);
-
-  //   for (let j=0; j<color_arr.length; j+=4){
-      
-  //     curr_thickness = thickness[j/4];
-  //     normalizedVal = thick_copy.indexOf(curr_thickness+1) * (1 / unique_count);
-  //     color_arr[j] = Math.round(startColor.r + (startColor.r - endColor.r) * normalizedVal);
-  //     color_arr[j + 1] = Math.round(startColor.g + (startColor.g - endColor.g) * normalizedVal);
-  //     color_arr[j + 2] = Math.round(startColor.b + (startColor.b - endColor.b) * normalizedVal);
-  //     color_arr[j + 3] = normalizedVal <= transparency ? 255 : 0;
-  //   }
-  //   console.log("done");
-  //   return color_arr;
-  // }
-
   // Iterate through every value in the thickness file and assign a color corresponding to it
   for (let i = 0; i < color_arr.length; i += 4) {
     curr_thickness = thickness[i / 4];
@@ -78,9 +60,24 @@ function load_gradient(thickness, min, max, transparency, startColor, endColor) 
   return color_arr;
 }
 
+function above_gradient(thickness, bound, startColor, endColor){
+  const color_arr = new Uint8Array(thickness.length * 4);
 
-// let stlfile = './test_items/bunny/thickness_model.stl';
-// let txtfile = './test_items/bunny/thickness.txt';
+  // Iterate through every value in the thickness file and assign a color corresponding to it
+  for (let i = 0; i < color_arr.length; i += 4) {
+    const curr_thickness = thickness[i/4];
+    const isAboveBound = curr_thickness > bound; // Check if thickness is above the bound
+
+    // If thickness is above the bound, it should be endColor (blue), else startColor (red)
+    color_arr[i] = isAboveBound ? endColor.r : startColor.r; // Red
+    color_arr[i + 1] = isAboveBound ? endColor.g : startColor.g; // Green
+    color_arr[i + 2] = isAboveBound ? endColor.b : startColor.b; // Blue
+    color_arr[i + 3] = isAboveBound ? 100 : 255; // Alpha (fully opaque)
+  }
+
+  return color_arr;
+}
+
 let minThickness, maxThickness, thicknessValues;
 function App() {
   const vtkContainerRef = useRef(null);
@@ -93,7 +90,8 @@ function App() {
   const fullScreenRendererRef = useRef(null);
   const [stlFile, setStlFile] = useState(null);
   const [txtFile, setTxtFile] = useState(null);
-
+  const [bound, setBound] = useState(0.0)
+  const [tempBound, setTempBound] = useState(0.0); // Temporary state for form input
 
   // Load STL and initialize thickness values on component mount
   useEffect(() => {
@@ -134,10 +132,6 @@ function App() {
         }
         minThickness = min(thicknessValues);
         maxThickness = max(thicknessValues);
-
-        // if (minThickness < 1.0 / 10**7){
-        //   setStepSize(0.00000001)
-        // }
 
         // Initial color array
         const colors = load_gradient(
@@ -210,35 +204,36 @@ function App() {
     loadSTL();
   }, [initialized]);
 
-  // Update color array when transparency changes
   useEffect(() => {
     if (initialized && fullScreenRendererRef.current) {
       const renderer = fullScreenRendererRef.current.getRenderer();
       const actor = renderer.getActors()[0]; // Assuming there is only one actor
-
+  
       if (actor) {
-        const colors = load_gradient(
-          thicknessValues,
-          minThickness,
-          maxThickness,
-          transparency,
-          startColor,
-          endColor
-        );
+        // Determine which gradient function to use based on bound
+        const colors = bound !== 0 ?
+          above_gradient(thicknessValues, bound, startColor, endColor) :
+          load_gradient(thicknessValues, minThickness, maxThickness, transparency, startColor, endColor);
+
         const colorDataArray = vtkDataArray.newInstance({
           name: 'Colors',
           values: colors,
           numberOfComponents: 4,
         });
-
+  
         actor.getMapper().getInputData().getCellData().setScalars(colorDataArray);
         actor.getMapper().getInputData().modified();
         actor.getMapper().modified();
         fullScreenRendererRef.current.getRenderWindow().render();
-
       }
     }
-  }, [transparency, initialized, startColor, endColor]);
+  }, [bound, thicknessValues, startColor, endColor, transparency, initialized]);
+
+  useEffect(() => {
+    // This useEffect is responsible for resetting bound when transparency changes
+    setBound(0.0);
+    setTempBound('0.0');
+  }, [transparency]);
 
   function handleStlFileChange(event) {
     const file = event.target.files[0];
@@ -257,6 +252,13 @@ function App() {
     event.preventDefault(); // Prevent default form submission behavior
     setInitialized(false);
   }
+
+  function handleBoundSubmit(event) {
+    event.preventDefault(); // Prevent default form submission behavior
+    const newBound = parseFloat(tempBound);
+    setBound(newBound); // Update bound state with the input value
+  }
+  
 
   const rgbToHex = (color) => {
     const {r, g, b} = color;
@@ -361,6 +363,23 @@ function App() {
                 <input type="file" id="thickness_txt" accept=".txt" onChange={handleTxtFileChange} />
               </div>
               <button type="submit" style={{ marginTop: '10px' }}>Submit</button>
+            </form>
+          </div>
+          <div style={{ position: 'fixed', bottom: 20, right: 150}}>
+            <form onSubmit={handleBoundSubmit}>
+              <div>
+                {/* <label htmlFor="boundValue">Bound:</label> */}
+                <input
+                  type="number"
+                  id="boundValue"
+                  value={tempBound}
+                  onChange={(e) => setTempBound(e.target.value)} // Update tempBound on change
+                  step='0.000001' // Allows values like 0.05
+                  min='0.000001'
+                  max={maxThickness}
+                />
+              </div>
+              <button type="submit" style={{ marginTop: '10px' }}>Update Bound</button>
             </form>
           </div>
     </div>

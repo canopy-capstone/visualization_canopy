@@ -45,16 +45,18 @@ function load_gradient(thickness, min, max, transparency, startColor, endColor) 
     // Apply logarithmic transformation
     curr_thickness = Math.log(curr_thickness + 1); // Adding 1 to avoid log(0)
     normalizedVal = (curr_thickness - Math.log(min + 1)) / (Math.log(max + 1) - Math.log(min + 1));
-    
-    // Ran into some errors loading triangles below a certain range so added this
-    if (normalizedVal < 5.0 / 10**6){
-      normalizedVal = 1 - normalizedVal;
-    }
 
     color_arr[i] = Math.round(startColor.r + (startColor.r - endColor.r) * normalizedVal);
     color_arr[i + 1] = Math.round(startColor.g + (startColor.g - endColor.g) * normalizedVal);
     color_arr[i + 2] = Math.round(startColor.b + (startColor.b - endColor.b) * normalizedVal);
     color_arr[i + 3] = normalizedVal <= transparency ? 255 : 0;
+
+    // Ran into some errors loading triangles below a certain range so added this
+    if (normalizedVal < 9.0 / 10**6){
+      color_arr[i] = endColor.r;
+      color_arr[i+1] = endColor.g;
+      color_arr[i+2] = endColor.b;
+    }
   }
 
   return color_arr;
@@ -67,14 +69,13 @@ function above_gradient(thickness, bound, startColor, endColor){
   for (let i = 0; i < color_arr.length; i += 4) {
     const curr_thickness = thickness[i/4];
     const isAboveBound = curr_thickness > bound; // Check if thickness is above the bound
-
+    
     // If thickness is above the bound, it should be endColor (blue), else startColor (red)
-    color_arr[i] = isAboveBound ? endColor.r : startColor.r; // Red
-    color_arr[i + 1] = isAboveBound ? endColor.g : startColor.g; // Green
-    color_arr[i + 2] = isAboveBound ? endColor.b : startColor.b; // Blue
+    color_arr[i] = isAboveBound ? startColor.r : endColor.r; // Red
+    color_arr[i + 1] = isAboveBound ? startColor.g : endColor.g; // Green
+    color_arr[i + 2] = isAboveBound ? startColor.b : endColor.b; // Blue
     color_arr[i + 3] = isAboveBound ? 100 : 255; // Alpha (fully opaque)
   }
-
   return color_arr;
 }
 
@@ -291,7 +292,7 @@ function App() {
         }}
       >
         <label htmlFor="transparencySlider" style={{ zIndex: 2, position: 'absolute', top: '100px' }}>
-          Min: {minThickness}
+          Max: {maxThickness}
         </label>
         <div style={sliderStyle}>
           <input
@@ -314,7 +315,7 @@ function App() {
         </div>
         {transparency}
         <label htmlFor="transparencySlider" style={{ zIndex: 2, position: 'absolute', bottom: '150px' }}>
-          Max: {maxThickness}
+          Min: {minThickness}
         </label>
         <td align="center" style={{ zIndex: 2, position: 'absolute', top: '10px' }}>
           <label htmlFor="startColor">From:</label>

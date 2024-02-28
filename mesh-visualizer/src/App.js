@@ -7,6 +7,7 @@ import vtkSTLReader from '@kitware/vtk.js/IO/Geometry/STLReader';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkCellPicker from "@kitware/vtk.js/Rendering/Core/CellPicker";
 import {max, min} from "lodash";
+import {tanh, exp, log} from "mathjs";
 
 export const VtkDataTypes = {
   VOID: '', // not sure to know what that should be
@@ -43,8 +44,10 @@ function load_gradient(thickness, min, max, transparency, startColor, endColor) 
   for (let i = 0; i < color_arr.length; i += 4) {
     curr_thickness = thickness[i / 4];
     // Apply logarithmic transformation
-    curr_thickness = Math.log(curr_thickness + 1); // Adding 1 to avoid log(0)
-    normalizedVal = (curr_thickness - Math.log(min + 1)) / (Math.log(max + 1) - Math.log(min + 1));
+    normalizedVal = calculateNormalizedValue(curr_thickness, minThickness, maxThickness)
+    // curr_thickness = log(curr_thickness + 1); // Adding 1 to avoid log(0)
+    // console.log(curr_thickness)
+    // normalizedVal = (curr_thickness - log(min + 1)) / (log(max + 1) - log(min + 1));
 
     color_arr[i] = Math.round(startColor.r + (startColor.r - endColor.r) * normalizedVal);
     color_arr[i + 1] = Math.round(startColor.g + (startColor.g - endColor.g) * normalizedVal);
@@ -52,7 +55,7 @@ function load_gradient(thickness, min, max, transparency, startColor, endColor) 
     color_arr[i + 3] = normalizedVal <= transparency ? 255 : 0;
 
     // Ran into some errors loading triangles below a certain range so added this
-    if (normalizedVal < 9.0 / 10**6){
+    if (normalizedVal < 10e-6){
       color_arr[i] = endColor.r;
       color_arr[i+1] = endColor.g;
       color_arr[i+2] = endColor.b;
@@ -79,11 +82,23 @@ function above_gradient(thickness, bound, startColor, endColor){
   return color_arr;
 }
 
+function calculateNormalizedValue(curr_thickness, minVal, maxVal)
+{
+  // const first_step = curr_thickness - minVal;
+  // const second_step = maxVal - minVal;
+  // const result = first_step / second_step;
+  // if (result === 0)
+  // {
+  //   console.log("No")
+  // }
+  const result = log(curr_thickness + 1) / log(maxVal+1);
+  return result;
+}
+
 let minThickness, maxThickness, thicknessValues;
 function App() {
   const vtkContainerRef = useRef(null);
   const [transparency, setTransparency] = useState(1.0);
-  const [stepSize, setStepSize] = useState(0.01);
   const [initialized, setInitialized] = useState(false);
   const [startColor, setStartColor] = useState({ r: 255, g: 0, b: 0 });
   const [endColor, setEndColor] = useState({ r: 0, g: 0, b: 255 });
@@ -299,7 +314,7 @@ function App() {
             type="range"
             min="0"
             max="1"
-            step={stepSize}
+            step="0.01"
             value={transparency}
             onChange={(e) => setTransparency(parseFloat(e.target.value))}
             style={{
@@ -351,7 +366,7 @@ function App() {
             <div>z: {debugInfo.z}</div>
             <div>polygonId: {debugInfo.polygonId}</div>
             <div>thickness: {thicknessValues[debugInfo.polygonId]} mm</div>
-            <div>Log Value: {(Math.log(thicknessValues[debugInfo.polygonId]+1) - Math.log(minThickness + 1)) / (Math.log(maxThickness + 1) - Math.log(minThickness + 1))} </div>
+            <div>Log Value: {calculateNormalizedValue(thicknessValues[debugInfo.polygonId], minThickness, maxThickness)} </div>
           </div>}
           <div style={{ position: 'fixed', top: 10, left: 10 }}>
             <form onSubmit={handleFormSubmit}>
